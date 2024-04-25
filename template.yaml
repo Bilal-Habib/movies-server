@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  MoviesApiLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Description: ''
+      MemorySize: 512
+      Timeout: 15
+      Handler: dev.bilal.movies.StreamLambdaHandler::handleRequest
+      Runtime: java17
+      Architectures:
+        - arm64
+      EphemeralStorage:
+        Size: 512
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 21600
+        MaximumRetryAttempts: 2
+      PackageType: Zip
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+            - Action:
+                - dynamodb:*
+                - dax:*
+                - application-autoscaling:DeleteScalingPolicy
+                - application-autoscaling:DeregisterScalableTarget
+                - application-autoscaling:DescribeScalableTargets
+                - application-autoscaling:DescribeScalingActivities
+                - application-autoscaling:DescribeScalingPolicies
+                - application-autoscaling:PutScalingPolicy
+                - application-autoscaling:RegisterScalableTarget
+                - cloudwatch:DeleteAlarms
+                - cloudwatch:DescribeAlarmHistory
+                - cloudwatch:DescribeAlarms
+                - cloudwatch:DescribeAlarmsForMetric
+                - cloudwatch:GetMetricStatistics
+                - cloudwatch:ListMetrics
+                - cloudwatch:PutMetricAlarm
+                - cloudwatch:GetMetricData
+                - datapipeline:ActivatePipeline
+                - datapipeline:CreatePipeline
+                - datapipeline:DeletePipeline
+                - datapipeline:DescribeObjects
+                - datapipeline:DescribePipelines
+                - datapipeline:GetPipelineDefinition
+                - datapipeline:ListPipelines
+                - datapipeline:PutPipelineDefinition
+                - datapipeline:QueryObjects
+                - ec2:DescribeVpcs
+                - ec2:DescribeSubnets
+                - ec2:DescribeSecurityGroups
+                - iam:GetRole
+                - iam:ListRoles
+                - kms:DescribeKey
+                - kms:ListAliases
+                - sns:CreateTopic
+                - sns:DeleteTopic
+                - sns:ListSubscriptions
+                - sns:ListSubscriptionsByTopic
+                - sns:ListTopics
+                - sns:Subscribe
+                - sns:Unsubscribe
+                - sns:SetTopicAttributes
+                - lambda:CreateFunction
+                - lambda:ListFunctions
+                - lambda:ListEventSourceMappings
+                - lambda:CreateEventSourceMapping
+                - lambda:DeleteEventSourceMapping
+                - lambda:GetFunctionConfiguration
+                - lambda:DeleteFunction
+                - resource-groups:ListGroups
+                - resource-groups:ListGroupResources
+                - resource-groups:GetGroup
+                - resource-groups:GetGroupQuery
+                - resource-groups:DeleteGroup
+                - resource-groups:CreateGroup
+                - tag:GetResources
+                - kinesis:ListStreams
+                - kinesis:DescribeStream
+                - kinesis:DescribeStreamSummary
+              Effect: Allow
+              Resource: '*'
+            - Action:
+                - cloudwatch:GetInsightRuleReport
+              Effect: Allow
+              Resource: arn:aws:cloudwatch:*:*:insight-rule/DynamoDBContributorInsights*
+            - Action:
+                - iam:PassRole
+              Effect: Allow
+              Resource: '*'
+              Condition:
+                StringLike:
+                  iam:PassedToService:
+                    - application-autoscaling.amazonaws.com
+                    - application-autoscaling.amazonaws.com.cn
+                    - dax.amazonaws.com
+            - Effect: Allow
+              Action:
+                - iam:CreateServiceLinkedRole
+              Resource: '*'
+              Condition:
+                StringEquals:
+                  iam:AWSServiceName:
+                    - replication.dynamodb.amazonaws.com
+                    - dax.amazonaws.com
+                    - dynamodb.application-autoscaling.amazonaws.com
+                    - contributorinsights.dynamodb.amazonaws.com
+                    - kinesisreplication.dynamodb.amazonaws.com
+      Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
+        Variables:
+          JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1 # More info about tiered compilation https://aws.amazon.com/blogs/compute/optimizing-aws-lambda-function-performance-for-java/
+      Events:
+        MovieAPI:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: Auto
+  MoviesTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: movies
+      AttributeDefinitions:
+        - AttributeName: movieId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: movieId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+  ReviewsTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: reviews
+      AttributeDefinitions:
+        - AttributeName: reviewId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: reviewId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
